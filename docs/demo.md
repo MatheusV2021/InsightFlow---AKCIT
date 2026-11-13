@@ -5,7 +5,7 @@
 1. Instale as dependências e copie `.env.example` para `.env`.
 2. Confirme `DEMO_MODE=true`. A chave pode ficar vazia. Variáveis do processo têm prioridade sobre o arquivo; reinicie após trocar o modo.
 3. Execute `python scripts/create_sample_pdfs.py` e `python -m streamlit run app.py`.
-4. Abra a aplicação e confirme o aviso **MODO DEMONSTRAÇÃO**. Não é necessário acesso à OpenAI.
+4. Abra a aplicação e confirme o aviso **MODO DEMONSTRAÇÃO**. Não é necessário acesso aos provedores de IA.
 5. Deixe os três arquivos de `output/pdf/` acessíveis. Não importe cópias repetidas para a mesma seleção.
 
 O gerador não cadastra dados automaticamente. A apresentação usa uploads e análise acionados pelo usuário. Se a biblioteca já tiver envios, o total de documentos e o histórico podem ser maiores que os números abaixo.
@@ -18,7 +18,7 @@ O gerador não cadastra dados automaticamente. A apresentação usa uploads e an
 | 0:20-0:55 | Em Documentos, enviar os três PDFs e processar. Abrir uma página. | “O texto é extraído por página e persistido. Todos os exemplos são identificados como fictícios.” |
 | 0:55-1:40 | Em Análises, selecionar os três e clicar em analisar. Abrir a possível divergência. | “O contrato prevê dez dias; a política estabelece trinta, mas admite exceções autorizadas. O sistema recomenda confirmar a aprovação, sem afirmar infração.” |
 | 1:40-2:15 | Mostrar recomendação, evidências e um filtro. Ir ao Dashboard. | “Em uma biblioteca nova: três documentos, uma análise, dois possíveis riscos e um de prioridade alta. São indicadores do SQLite, neste modo derivados de uma simulação explícita.” |
-| 2:15-2:45 | No Assistente IA, selecionar os PDFs e perguntar “Qual o prazo de pagamento?”. Abrir fontes. | “Na demonstração, o chat apenas recupera trechos locais, sem IA. No modo normal, o mesmo contexto fundamenta uma resposta gerada pela OpenAI.” |
+| 2:15-2:45 | No Assistente IA, selecionar os PDFs e perguntar “Qual o prazo de pagamento?”. Abrir fontes. | “Na demonstração, o chat apenas recupera trechos locais, sem IA. No modo normal, o mesmo contexto fundamenta uma resposta gerada pelo provedor configurado.” |
 | 2:45-3:00 | Encerrar com valor, limites e evolução. | “A proposta é reduzir o trabalho de triagem com rastreabilidade. A revisão humana continua necessária; o fluxo real depende de chave e validação da qualidade.” |
 
 ## Resultados previsíveis com os três exemplos

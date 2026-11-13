@@ -39,7 +39,7 @@ if documents:
     st.caption(
         "Demonstração: selecione os PDFs fictícios gerados pelo projeto. A análise é simulada e não usa a API."
         if settings.demo_mode else
-        "Ao analisar, os trechos são enviados à OpenAI e podem gerar custos. Resultados já salvos são reutilizados."
+        f"Ao analisar, os trechos são enviados ao provedor {settings.provider_label} e podem gerar custos. Resultados já salvos são reutilizados."
     )
     selected_ids = st.multiselect(
         "Documentos para análise", options=list(documents_by_id),

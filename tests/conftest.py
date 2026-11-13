@@ -15,6 +15,10 @@ def prevent_real_openai_calls(monkeypatch):
         "services.llm_service.OpenAI",
         Mock(side_effect=AssertionError("Chamadas reais à OpenAI são proibidas nos testes.")),
     )
+    monkeypatch.setattr(
+        "services.gemini_service.genai.Client",
+        Mock(side_effect=AssertionError("Chamadas reais ao Gemini são proibidas nos testes.")),
+    )
 
 
 @pytest.fixture
@@ -35,6 +39,9 @@ def document_settings(tmp_path):
     settings = Settings(
         database_path=tmp_path / "database" / "test.db",
         uploads_dir=tmp_path / "uploads",
+        qdrant_path=tmp_path / "qdrant",
+        chat_retrieval="lexical",
+        chat_agent_enabled=False,
     )
     initialize_workspace(settings)
     return settings

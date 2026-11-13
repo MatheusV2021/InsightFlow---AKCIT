@@ -131,9 +131,10 @@ def filter_findings(findings: list[Finding], sources: list[SourcePage]) -> list[
 def analyze_documents(settings: Settings, document_ids: list[str]) -> Analysis:
     """Reutiliza resultado salvo ou executa até duas chamadas sequenciais e persiste."""
     sources, warnings = prepare_sources(settings, document_ids)
-    model_name = DEMO_MODEL if settings.demo_mode else settings.openai_model
+    model_name = DEMO_MODEL if settings.demo_mode else settings.generation_model
     input_hash = hashlib.sha256(json.dumps({
         "version": ANALYSIS_PIPELINE_VERSION, "model": model_name, "is_demo": settings.demo_mode,
+        "provider": settings.ai_provider if not settings.demo_mode else "demo",
         "sources": [source.model_dump() for source in sources], "warnings": warnings,
     }, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
     existing_id = repository.find_analysis_id(settings.database_path, input_hash)
@@ -178,7 +179,7 @@ def analyze_documents(settings: Settings, document_ids: list[str]) -> Analysis:
     if discarded:
         warnings.append(f"{discarded} achado(s) descartado(s) por evidências não verificáveis ou insuficientes.")
     analysis = Analysis(
-        id=str(uuid4()), created_at=datetime.now(timezone.utc), model=settings.openai_model,
+        id=str(uuid4()), created_at=datetime.now(timezone.utc), model=settings.generation_model,
         document_ids=sorted(document_ids), summary=summarize_findings(findings),
         warnings=warnings, discarded_findings=discarded, findings=findings,
     )

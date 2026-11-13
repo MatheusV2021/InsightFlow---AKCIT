@@ -172,6 +172,18 @@ def get_dashboard_counts(database_path: Path, demo_mode: bool | None = None) -> 
     return dict(row)
 
 
+def get_source_page(database_path: Path, document_id: str, page_number: int) -> SourcePage | None:
+    """Consulta uma única página com suas referências, sem abrir o PDF."""
+    with get_connection(database_path) as connection:
+        row = connection.execute(
+            """SELECT d.id AS document_id, d.original_filename AS filename,
+                p.page_number, p.extracted_text AS text
+                FROM documents d JOIN document_pages p ON p.document_id = d.id
+                WHERE d.id = ? AND p.page_number = ?""", (document_id, page_number),
+        ).fetchone()
+    return SourcePage.model_validate(dict(row)) if row is not None else None
+
+
 def get_selected_document_pages(database_path: Path, document_ids: list[str]) -> list[SourcePage]:
     """Consulta páginas somente dos IDs selecionados, com seus nomes originais."""
     if not document_ids:

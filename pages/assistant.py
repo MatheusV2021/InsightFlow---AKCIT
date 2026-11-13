@@ -60,14 +60,22 @@ selected_ids = st.multiselect(
     key="assistant_documents",
 )
 st.caption(
-    f"A busca lexical seleciona até {MAX_CHAT_CONTEXT_CHARS:,} caracteres. "
+    f"A busca seleciona até {MAX_CHAT_CONTEXT_CHARS:,} caracteres dos documentos escolhidos. "
     "As respostas se limitam aos trechos recuperados, sem garantir uma leitura integral. "
     "Faça perguntas completas: mensagens anteriores não são enviadas ao modelo."
 )
+if not settings.demo_mode and settings.chat_agent_enabled and settings.chat_retrieval == "qdrant":
+    st.caption(
+        f"O assistente pode realizar até {settings.agent_max_tool_calls} consultas por pergunta, "
+        f"incluindo no máximo {min(settings.agent_max_searches, settings.agent_max_tool_calls)} buscas "
+        "semânticas e leituras das páginas selecionadas. Ele pode encerrar antes desse limite."
+    )
 st.caption(
     "Demonstração: serão mostrados trechos recuperados localmente, sem chamar a IA."
     if settings.demo_mode else
-    "Ao enviar perguntas com trechos relevantes, a OpenAI pode gerar custos. Citações são conferidas, mas a interpretação exige revisão humana."
+    f"A investigação e a resposta podem envolver várias chamadas ao provedor {settings.provider_label} e gerar custos. "
+    "Perguntas e trechos consultados são enviados à API; a busca semântica também envia os trechos ainda não indexados para gerar embeddings. "
+    "Citações são conferidas, mas a interpretação exige revisão humana."
 )
 if not documents:
     st.info("Envie e processe PDFs na página Documentos para começar a conversar.")

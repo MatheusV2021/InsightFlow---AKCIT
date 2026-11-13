@@ -1,6 +1,6 @@
 # Fluxo dos agentes e modos de execução
 
-Os agentes são funções especializadas no monólito Python. Não há execução paralela, filas ou autonomia. Uma análise começa somente após a ação explícita do usuário.
+O projeto combina funções especializadas de análise com um agente documental no chat, que escolhe ferramentas de leitura dentro de limites. Não há execução paralela ou filas. Uma análise começa somente após a ação explícita do usuário.
 
 ## Entradas e preparação
 
@@ -52,7 +52,11 @@ O dashboard consulta apenas análises do modo atual e conta possíveis riscos e 
 
 ## Chat
 
-O fluxo do assistente é independente da análise: busca lexical, seleção de trechos, resposta e validação de fontes. No modo normal, faz até uma chamada por pergunta com contexto relevante. Sem contexto, responde localmente sobre evidência insuficiente. Na demonstração, mostra trechos locais identificados, sem interpretação gerada por IA. O histórico é de sessão e separado por modo. Detalhes em [chat.md](chat.md).
+O fluxo do assistente é independente da análise. No modo normal com Qdrant e `CHAT_AGENT_ENABLED=true`, um agente escolhe buscas semânticas e consultas a páginas no SQLite. Pode reformular uma busca e conferir condições em páginas, sempre restrito aos documentos selecionados. Por padrão são até quatro chamadas às ferramentas, no máximo três buscas vetoriais; tentativas inválidas e repetidas consomem o limite total. Há até quatro chamadas de decisão e uma geração final, além dos embeddings e lotes de indexação.
+
+As fontes de todas as ferramentas compartilham seis recortes e 10.000 caracteres. Ao esgotar limites, o agente usa apenas o material obtido. Sem fontes, retorna evidência insuficiente sem geração final. Texto livre das decisões é descartado; a resposta estruturada continua passando pela checagem literal dos recortes efetivamente enviados e das páginas salvas no SQLite.
+
+`CHAT_AGENT_ENABLED=false` mantém a recuperação vetorial única; `CHAT_RETRIEVAL=lexical` usa o fluxo lexical anterior. Na demonstração, mostra trechos locais identificados, sem interpretação gerada por IA ou ferramentas do agente. O histórico é de sessão, separado por modo, e reruns não repetem chamadas. Detalhes em [chat.md](chat.md).
 
 ## Custos, erros e limites
 

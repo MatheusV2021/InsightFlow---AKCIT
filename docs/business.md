@@ -22,7 +22,7 @@ Hipótese inicial: assinatura por equipe, com franquia de documentos ou análise
 
 ## Limitações atuais
 
-Aplicação local, sem autenticação, permissões, colaboração ou controle de resolução de riscos. Limites de tamanho, páginas e contexto. Sem OCR; busca lexical sem compreensão de sinônimos. A interpretação da IA pode falhar mesmo com citações existentes. O modo normal depende da API externa, da cota e da conexão. A demonstração é predefinida e não serve como prova de precisão.
+Aplicação local, sem autenticação, permissões, colaboração ou controle de resolução de riscos. Limites de tamanho, páginas e contexto. Sem OCR; a busca semântica pode omitir conteúdo ou selecionar trechos inadequados. O índice Qdrant local suporta um único processo por pasta e a geração de embeddings depende do provedor ativo (Gemini ou OpenAI) no modo normal. A interpretação da IA pode falhar mesmo com citações existentes. O modo normal depende da API externa, da cota e da conexão. A demonstração é predefinida e não serve como prova de precisão.
 
 ## Próximas evoluções sugeridas
 

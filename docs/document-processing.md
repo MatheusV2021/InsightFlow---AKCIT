@@ -48,7 +48,7 @@ O processamento parcial é também calculado por `processed_pages < total_pages`
 
 Metadados e páginas compartilham a mesma transação. Em falhas normais de escrita ou persistência, o serviço desfaz a transação e remove o arquivo recém-criado. Não há transação distribuída entre sistema de arquivos e SQLite: encerramento abrupto do processo entre salvar o PDF e confirmar o banco pode deixar um arquivo órfão. Não há rotina automática de recuperação nesta etapa.
 
-A listagem e o texto são lidos do banco em novas conexões. Reiniciar a aplicação não remove dados; mantenha tanto o banco quanto `uploads/`. A interface apresenta datas em UTC-3. O upload e a extração não fazem chamadas externas nem registram conteúdo em logs; PDFs e SQLite continuam ignorados pelo Git. A análise explícita na área Análises envia trechos à OpenAI, conforme o [fluxo dos agentes](agent-flow.md).
+A listagem e o texto são lidos do banco em novas conexões. Reiniciar a aplicação não remove dados; mantenha tanto o banco quanto `uploads/`. A interface apresenta datas em UTC-3. O upload e a extração não fazem chamadas externas nem registram conteúdo em logs; PDFs e SQLite continuam ignorados pelo Git. A análise explícita na área Análises envia trechos ao provedor ativo, conforme o [fluxo dos agentes](agent-flow.md).
 
 ## Reruns do Streamlit
 

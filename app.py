@@ -19,7 +19,7 @@ try:
     settings = get_settings()
     initialize_workspace(settings)
 except ValidationError:
-    st.error("Configuração inválida. Confira OPENAI_MODEL e DEMO_MODE no ambiente ou .env.")
+    st.error("Configuração inválida. Confira AI_PROVIDER, os modelos, limites e DEMO_MODE no ambiente ou .env.")
     st.stop()
 except (OSError, sqlite3.Error):
     st.error(
@@ -37,7 +37,7 @@ with st.sidebar:
     if settings.demo_mode:
         st.caption("DEMONSTRAÇÃO · análises simuladas · API bloqueada")
     else:
-        st.caption("MODO NORMAL · análise por IA")
+        st.caption(f"MODO NORMAL · {settings.provider_label}")
     st.caption("Documentos → Análises → Dashboard")
 
 page = st.navigation(

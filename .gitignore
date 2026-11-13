@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-qdrant/
 venv/
 .pytest_cache/
 .coverage
@@ -24,6 +25,7 @@ output/
 *.sqlite3-*
 uploads/*
 !uploads/.gitkeep
+database/qdrant/
 
 # Sistema e editor
 .DS_Store

@@ -1,4 +1,4 @@
-"""Perguntas sobre PDFs por busca lexical local e uma chamada estruturada à IA."""
+"""Perguntas sobre PDFs com recuperação local e fontes verificadas."""
 
 import json
 import re
@@ -13,6 +13,8 @@ from database import repository
 from models.schemas import ChatModelOutput, ChatResponse, Evidence, SourcePage
 from services.analysis_service import evidence_matches
 from services.llm_service import request_structured
+from services.vector_service import retrieve_vector_chunks
+from services.agent_service import investigate_question
 
 STOP_WORDS = {
     "a", "ao", "aos", "as", "com", "como", "da", "das", "de", "do", "dos", "e", "em",
@@ -57,10 +59,10 @@ def tokenize(text: str) -> list[str]:
     ]
 
 
-def retrieve_relevant_chunks(
+def validate_question_selection(
     settings: Settings, question: str, document_ids: list[str]
-) -> tuple[list[SourcePage], list[str]]:
-    """Pontua termos distintos e frequência limitada, com desempate por ID, página e posição."""
+) -> tuple[list[str], list[str]]:
+    """Valida a entrada antes de qualquer chamada à IA ou ao índice vetorial."""
     if not question.strip() or len(question) > MAX_CHAT_QUESTION_CHARS:
         raise ValueError(f"Escreva uma pergunta de 1 a {MAX_CHAT_QUESTION_CHARS} caracteres.")
     if not document_ids:
@@ -75,6 +77,17 @@ def retrieve_relevant_chunks(
             warnings.append(f"{document.original_filename}: apenas {document.processed_pages} de {document.total_pages} páginas estão disponíveis para a busca.")
         if document.status == "no_text":
             warnings.append(f"{document.original_filename}: sem texto extraível; não há OCR neste MVP.")
+    return selected_ids, warnings
+
+
+def retrieve_relevant_chunks(
+    settings: Settings, question: str, document_ids: list[str]
+) -> tuple[list[SourcePage], list[str]]:
+    """Recupera trechos com a seleção validada e avisos de cobertura."""
+    selected_ids, warnings = validate_question_selection(settings, question, document_ids)
+    if not settings.demo_mode and settings.chat_retrieval == "qdrant":
+        chunks, vector_warnings = retrieve_vector_chunks(settings, question, selected_ids)
+        return chunks, warnings + vector_warnings
     terms = set(tokenize(question))
     if not terms:
         return [], warnings
@@ -113,7 +126,12 @@ def retrieve_relevant_chunks(
 
 def ask_question(settings: Settings, question: str, document_ids: list[str]) -> ChatResponse:
     """Responde a uma pergunta independente, exibindo somente afirmações com fontes conferidas."""
-    sources, warnings = retrieve_relevant_chunks(settings, question, document_ids)
+    if not settings.demo_mode and settings.chat_agent_enabled and settings.chat_retrieval == "qdrant":
+        selected_ids, warnings = validate_question_selection(settings, question, document_ids)
+        sources, agent_warnings = investigate_question(settings, question, selected_ids)
+        warnings += agent_warnings
+    else:
+        sources, warnings = retrieve_relevant_chunks(settings, question, document_ids)
     if not sources:
         return ChatResponse(answer=INSUFFICIENT_EVIDENCE, evidence=[], warnings=warnings, is_demo=settings.demo_mode)
     if settings.demo_mode:

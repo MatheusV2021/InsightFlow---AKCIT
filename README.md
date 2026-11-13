@@ -1,189 +1,733 @@
 # InsightFlow AI
 
-MVP de inteligência documental empresarial para o hackathon. O sistema reúne PDFs, extrai texto, identifica obrigações e prazos, propõe possíveis riscos e inconsistências, recomenda ações e permite perguntas com fontes verificáveis.
+Plataforma local de inteligência documental para organizar PDFs, extrair texto, identificar obrigações e prazos, sugerir possíveis riscos e consultar documentos com um agente de IA e fontes verificáveis.
 
-## Problema e solução
+MVP para hackathon em Python e Streamlit, com SQLite como origem dos dados, Qdrant local para recuperação semântica e Gemini ou OpenAI para análise, geração e embeddings. Os resultados apoiam a revisão humana; não constituem auditoria conclusiva ou parecer jurídico.
 
-Informações de contratos, políticas e manuais ficam dispersas. Conferir prazos e aprovações manualmente exige tempo e pode deixar divergências passar. O InsightFlow AI transforma o texto disponível em achados rastreáveis e indicadores para orientar a revisão humana. Não substitui auditoria ou parecer jurídico.
+## Sumário
 
-## Funcionalidades implementadas
+- [Funcionalidades e modos](#funcionalidades-e-modos)
+- [Instalação e execução](#instalação-e-execução)
+- [Configuração completa](#configuração-completa)
+- [Arquitetura e stack](#arquitetura-e-stack)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Processamento de PDFs](#processamento-de-pdfs)
+- [Agentes e análise documental](#agentes-e-análise-documental)
+- [Agente de investigação no chat](#agente-de-investigação-no-chat)
+- [RAG e Qdrant local](#rag-e-qdrant-local)
+- [Integração com Gemini e OpenAI](#integração-com-gemini-e-openai)
+- [Schemas e validação das fontes](#schemas-e-validação-das-fontes)
+- [Banco de dados e persistência](#banco-de-dados-e-persistência)
+- [Dashboard e indicadores](#dashboard-e-indicadores)
+- [Limites técnicos e custos](#limites-técnicos-e-custos)
+- [Segurança e privacidade](#segurança-e-privacidade)
+- [Operação e backup](#operação-e-backup)
+- [Testes e verificação](#testes-e-verificação)
+- [Solução de problemas](#solução-de-problemas)
+- [Demonstração do hackathon](#demonstração-do-hackathon)
+- [Limitações e evolução](#limitações-e-evolução)
+- [Documentação complementar](#documentação-complementar)
 
-- **Documentos:** upload de até três PDFs por operação, até 10 MB cada; validação de extensão, assinatura e abertura; extração das primeiras dez páginas; biblioteca persistente e texto por página.
-- **Análises:** seleção de até três documentos; fluxo sequencial Analista → Auditor/Recomendador; prioridade, recomendações e citações verificadas; histórico e filtros por prioridade, categoria e documento.
-- **Dashboard:** quatro indicadores, gráficos Plotly por prioridade/categoria, alertas, últimas análises e recomendações. Consultas locais, sem chamadas à IA.
-- **Assistente IA:** perguntas explícitas, recuperação lexical sem embeddings, fontes expansíveis e histórico somente durante a sessão. Cada pergunta é independente.
-- **Demonstração local:** três PDFs claramente fictícios, análise previsível identificada como simulada e chat extrativo. Nenhuma chamada à API nesse modo.
+## Funcionalidades e modos
 
-## Arquitetura e stack
+| Área | Comportamento implementado |
+| --- | --- |
+| Documentos | Upload e validação de PDFs, extração por página, biblioteca persistente e leitura dos textos. |
+| Análises | Extração de fatos, auditoria de possíveis riscos, recomendações, histórico, filtros e evidências. |
+| Dashboard | Indicadores, gráficos, alertas e recomendações baseados no SQLite. |
+| Assistente IA | Agente com busca no Qdrant, leitura de páginas no SQLite e respostas com citações conferidas. |
+| Demonstração | Análise determinística de PDFs fictícios e chat extrativo, sem chamadas externas. |
 
-Monólito modular em três camadas, sem API REST interna:
+### Matriz de execução do chat
 
-1. **Apresentação:** Streamlit, componentes nativos e Plotly.
-2. **Negócios:** funções Python nos serviços de documentos, PDF, análise, demonstração, dashboard, chat e integração com IA.
-3. **Dados:** SQLite com `sqlite3` nativo e PDFs locais em `uploads/`.
+| `DEMO_MODE` | `CHAT_RETRIEVAL` | `CHAT_AGENT_ENABLED` | Fluxo |
+| --- | --- | --- | --- |
+| `true` | Qualquer valor válido | Qualquer valor válido | Busca lexical e exibição de trechos; sem API e sem Qdrant. |
+| `false` | `qdrant` | `true` | Agente escolhe buscas e leituras; geração final validada. |
+| `false` | `qdrant` | `false` | Uma recuperação vetorial e geração estruturada, se houver contexto. |
+| `false` | `lexical` | Qualquer valor válido | Recuperação por termos e geração estruturada, se houver contexto. |
 
-A apresentação chama os serviços diretamente; queries ficam no repositório. Configurações e caminhos usam `config.py` e `pathlib`. A navegação usa somente `st.navigation` com quatro páginas.
+A análise documental tem fluxo próprio: não depende do Qdrant nem de conversas anteriores. Listagens, filtros, leitura de resultados salvos e dashboard não chamam a IA.
 
-Stack: Python 3.11+, Streamlit, SQLite, PyMuPDF, SDK oficial OpenAI, Pydantic, python-dotenv, Plotly e pytest. Dependências diretas fixadas em `requirements.txt`; nenhuma dependência nova foi necessária para gerar os exemplos.
+## Instalação e execução
 
-## Organização
+### Requisitos
 
-```text
-insightflow-ai/
-├── app.py
-├── config.py
-├── .streamlit/config.toml
-├── pages/                  # dashboard.py, documents.py, analyses.py, assistant.py
-├── services/               # regras e integrações Python
-│   ├── document_service.py
-│   ├── pdf_service.py
-│   ├── analysis_service.py
-│   ├── demo_service.py
-│   ├── llm_service.py
-│   ├── dashboard_service.py
-│   └── chat_service.py
-├── database/               # db.py, repository.py; banco criado automaticamente
-├── models/schemas.py
-├── uploads/                # PDFs recebidos, fora do Git
-├── scripts/create_sample_pdfs.py
-├── output/pdf/             # exemplos gerados, fora do Git
-├── tests/
-├── docs/                   # arquitetura, agentes, processamento, chat, demo e negócio
-├── requirements.txt
-├── .env.example
-├── .gitignore
-└── README.md
-```
+- Python 3.11 ou superior; ambiente validado no Windows com Python 3.13.
+- Permissão de escrita na pasta do projeto e um ambiente virtual.
+- Internet para instalar dependências.
+- No modo real: chave, acesso aos modelos e cota no provedor escolhido.
+- Na demonstração: nenhuma chave ou conexão externa após instalar dependências.
 
-## Requisitos
+O Qdrant opera embutido pelo cliente Python. A configuração atual não exige Docker, servidor Qdrant ou PostgreSQL.
 
-Python 3.11 ou superior, acesso de escrita à pasta do projeto e um ambiente virtual. Validação local feita no Windows com Python 3.13. Internet e chave OpenAI são necessárias somente para novas análises e respostas geradas no modo normal. O modo demonstração funciona sem chave e sem rede após instalar as dependências.
+### Windows PowerShell
 
-## Instalação no Windows PowerShell
-
-Na raiz do repositório, com Python 3.13 instalado:
+Execute na raiz do repositório:
 
 ```powershell
 py -3.13 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-python scripts/create_sample_pdfs.py
-python -m streamlit run app.py
-```
-
-Se a ativação for bloqueada pela política do PowerShell, use diretamente o executável do ambiente:
-
-```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe scripts/create_sample_pdfs.py
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-## Instalação no Linux
+Os comandos usam o executável do ambiente, sem exigir ativação por `Activate.ps1`. A cópia condicional evita sobrescrever um `.env` existente.
 
-Com Python 3.11+ e `venv` disponíveis:
+### Linux ou macOS
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-cp .env.example .env
-python scripts/create_sample_pdfs.py
+[ -f .env ] || cp .env.example .env
 python -m streamlit run app.py
 ```
 
-Abra o endereço exibido pelo Streamlit, normalmente `http://localhost:8501`. Encerre com `Ctrl+C`.
+Esses comandos são instruções de instalação; a execução nesses sistemas não foi validada neste projeto.
 
-## Configuração do .env e modos
+Abra a URL informada pelo Streamlit, normalmente `http://localhost:8501`. Encerre com `Ctrl+C`. Após alterar configurações, reinicie a aplicação.
 
-O arquivo de exemplo vem preparado para demonstração:
+### Primeiro uso
+
+1. Configure o `.env` para demonstração ou modo real.
+2. Em **Documentos**, envie PDFs e acione o processamento.
+3. Confira o texto extraído e os avisos de cobertura.
+4. Em **Análises**, selecione até três documentos e acione a análise.
+5. No **Assistente IA**, selecione documentos e envie uma pergunta completa.
+6. Confira citações e páginas antes de usar as conclusões.
+
+A primeira busca vetorial indexa os documentos consultados. Uploads e abertura de páginas da aplicação não geram embeddings.
+
+## Configuração completa
+
+[`config.py`](config.py) carrega configurações com `python-dotenv` e Pydantic. A precedência é:
+
+```text
+Variáveis do processo > arquivo .env > valores padrão de Settings
+```
+
+O `.env` está ignorado pelo Git. Não publique chaves em commits, imagens, logs ou mensagens.
+
+### Gemini no modo real
 
 ```dotenv
-OPENAI_API_KEY=
+AI_PROVIDER=gemini
+GEMINI_API_KEY=cole_sua_chave_aqui
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
+GEMINI_EMBEDDING_DIMENSIONS=1536
+DEMO_MODE=false
+
+CHAT_RETRIEVAL=qdrant
+QDRANT_PATH=database/qdrant
+VECTOR_SCORE_THRESHOLD=0.3
+CHAT_AGENT_ENABLED=true
+AGENT_MAX_TOOL_CALLS=4
+AGENT_MAX_SEARCHES=3
+```
+
+A chave pode ser criada no [Google AI Studio](https://aistudio.google.com/apikey). O modelo acima é o padrão configurado no projeto, não uma garantia de disponibilidade na conta ou capacidade do serviço. A geração precisa oferecer ferramentas e saída estruturada; os embeddings precisam produzir um vetor por entrada nas dimensões escolhidas.
+
+### OpenAI como alternativa
+
+```dotenv
+AI_PROVIDER=openai
+OPENAI_API_KEY=cole_sua_chave_aqui
 OPENAI_MODEL=gpt-4.1-mini
-DEMO_MODE=true
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_EMBEDDING_DIMENSIONS=1536
+DEMO_MODE=false
+
+CHAT_RETRIEVAL=qdrant
+CHAT_AGENT_ENABLED=true
 ```
 
-- **`DEMO_MODE=true`:** bloqueia a API no cliente compartilhado; análises usam regras locais somente sobre os PDFs fictícios originais. A interface identifica a simulação, inclusive no dashboard. O chat mostra trechos encontrados localmente, sem gerar interpretações por IA.
-- **`DEMO_MODE=false`:** habilita o fluxo real da OpenAI. A lista, os indicadores e as consultas de análises excluem resultados simulados. Não há achados predefinidos nesse fluxo.
-- **`OPENAI_API_KEY`:** obrigatória para gerar resultados com IA no modo normal; nunca é necessária para abrir a interface, fazer uploads ou consultar resultados existentes.
-- **`OPENAI_MODEL`:** modelo com suporte à API Responses e saídas estruturadas. O exemplo usa `gpt-4.1-mini`; disponibilidade e cota dependem da conta.
+Somente as credenciais e modelos do provedor selecionado são usados. Não há troca automática de provedor em uma falha. As demais configurações usam os valores do `.env` ou seus padrões.
 
-Sem `.env` ou variável de ambiente, `DEMO_MODE` assume **false**. Copiar o `.env.example` ativa a demonstração. Variáveis do processo têm prioridade sobre o arquivo. Após alterar o modo, reinicie a aplicação. O histórico do chat é separado por modo e não é persistido no banco.
+### Referência das variáveis de ambiente
 
-Análises têm a marca persistente `is_demo`. A migração automática do esquema para a versão 4 preserva os dados anteriores e classifica análises antigas como reais, pois o antigo modo demonstração era apenas visual. Nenhum resultado antigo é convertido em simulação. A biblioteca de documentos é compartilhada entre os modos; os exemplos continuam claramente nomeados como fictícios.
+Os padrões abaixo são de `Settings`, sem `.env` nem variáveis do processo. O [`.env.example`](.env.example) seleciona **Gemini e demonstração**, enquanto o código preserva **OpenAI e modo real** por compatibilidade.
 
-## Gerar e usar os PDFs fictícios
+| Variável | Padrão do código | Uso e validação |
+| --- | --- | --- |
+| `AI_PROVIDER` | `openai` | `gemini` ou `openai`; seleciona geração, ferramentas e embeddings. |
+| `DEMO_MODE` | `false` | Quando `true`, bloqueia chamadas externas e usa demonstração. |
+| `GEMINI_API_KEY` | Vazia | Chave Google em `SecretStr`, exigida nas chamadas reais ao Gemini. |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Modelo não vazio para análises, agente e resposta final. |
+| `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-001` | Modelo não vazio para vetorização Google. |
+| `GEMINI_EMBEDDING_DIMENSIONS` | `1536` | Inteiro entre 1 e 3072; o modelo também precisa aceitar o valor. |
+| `OPENAI_API_KEY` | Vazia | Chave OpenAI em `SecretStr`, exigida nas chamadas reais à OpenAI. |
+| `OPENAI_MODEL` | `gpt-4.1-mini` | Modelo não vazio usado pela API Responses. |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Modelo não vazio para vetorização OpenAI. |
+| `OPENAI_EMBEDDING_DIMENSIONS` | `1536` | Inteiro entre 1 e 3072; enviado como `dimensions`. |
+| `CHAT_RETRIEVAL` | `qdrant` | Aceita `qdrant` ou `lexical`. |
+| `QDRANT_PATH` | `database/qdrant` na raiz do projeto | Diretório persistente; caminhos relativos são resolvidos contra a raiz. |
+| `VECTOR_SCORE_THRESHOLD` | `0.3` | Número entre -1 e 1; limiar de cosseno, não probabilidade de acerto. |
+| `CHAT_AGENT_ENABLED` | `true` | Agente no modo real com Qdrant. |
+| `AGENT_MAX_TOOL_CALLS` | `4` | Inteiro entre 1 e 8; limita decisões que podem executar ferramentas. |
+| `AGENT_MAX_SEARCHES` | `3` | Inteiro entre 1 e 6; limita buscas, também sujeitas ao orçamento total. |
 
-```bash
-python scripts/create_sample_pdfs.py
+Os caminhos padrão de SQLite e uploads são `database/insightflow.db` e `uploads/`, na raiz do projeto. Podem ser substituídos ao construir `Settings` em Python, como nos testes; não há variáveis de ambiente para esses dois caminhos no carregador atual.
+
+Limites fixos de arquivos, páginas e recortes são constantes de `config.py`, não variáveis de ambiente.
+
+## Arquitetura e stack
+
+Monólito modular em três camadas: apresentação, serviços de negócio e persistência. A interface chama funções Python diretamente; não há API REST interna, fila ou serviço de agentes separado.
+
+```mermaid
+flowchart TB
+    User[Usuário] --> UI[Streamlit: quatro páginas]
+    UI --> Documents[Serviço de documentos]
+    UI --> Analysis[Analista e Auditor/Recomendador]
+    UI --> Chat[Chat e validação]
+    UI --> Dashboard[Indicadores determinísticos]
+    Documents --> PDF[PyMuPDF]
+    Documents --> Files[PDFs em uploads]
+    Documents --> Repo[Repositório SQL]
+    Analysis --> Repo
+    Analysis --> LLM[Adaptador de IA]
+    Dashboard --> Repo
+    Chat --> Agent[Agente documental limitado]
+    Chat --> LLM
+    Agent --> Vector[Serviço vetorial]
+    Agent --> Repo
+    Agent --> LLM
+    Vector --> Qdrant[Qdrant local]
+    Vector --> Repo
+    Vector --> LLM
+    Repo --> SQLite[SQLite]
+    LLM --> Google[Google Gen AI: Gemini]
+    LLM --> OpenAI[OpenAI: Responses e embeddings]
 ```
 
-São criados em `output/pdf/`:
+O diagrama mostra dependências do modo real. O adaptador usa apenas o provedor configurado. Na demonstração, análise e chat seguem caminhos locais.
 
-1. `FICTICIO_01_contrato_fornecedor.pdf`: pagamento em dez dias, multa de 2%, obrigações e exigência de autorização financeira.
-2. `FICTICIO_02_politica_financeira.pdf`: padrão de trinta dias, aprovação prévia e procedimento de exceção escrita.
-3. `FICTICIO_03_manual_operacional.pdf`: aprovação antes da compra, responsabilidades operacionais e documentação.
+### Dependências diretas
 
-É possível definir outra pasta com `--output-dir CAMINHO`. O gerador não cadastra PDFs nem análises automaticamente. Em Documentos, envie os três arquivos; em Análises, selecione uma cópia de cada e clique em **Analisar documentos**.
+As versões correspondem a [`requirements.txt`](requirements.txt). Dependências transitivas são resolvidas pelo instalador; não existe um lockfile completo do ambiente.
 
-Com esses três PDFs, a análise simulada produz quatro achados: prazo de dez dias, possível exposição à multa, possível divergência de prazos e obrigação de formalizar aprovação. Em uma biblioteca nova, o dashboard mostra **3 documentos, 1 análise, 2 riscos e 1 risco de alta prioridade**. As mesmas entradas reutilizam o resultado salvo. Novos uploads geram outros registros e podem aumentar as contagens históricas.
+| Dependência | Versão fixada | Responsabilidade |
+| --- | --- | --- |
+| Streamlit | `1.67.0` | Interface, navegação e estado de sessão. |
+| PyMuPDF | `2.1` | Extração e geração dos PDFs fictícios. |
+| Google Gen AI | `3.3.0` | Integração nativa Gemini. |
+| OpenAI | `3.50.0` | Alternativa com Responses e embeddings. |
+| Qdrant Client | `1.18.0` | Índice vetorial local. |
+| Pydantic | `2.14.3` | Configurações, ferramentas e respostas. |
+| python-dotenv | `1.2.4` | Leitura do `.env`. |
+| Plotly | `7.1.0` | Gráficos do dashboard. |
+| pytest | `9.2.0` | Testes automatizados. |
 
-O exemplo admite exceções autorizadas e não demonstra atraso nem infração efetiva. O modo simulado valida todo o texto esperado, não apenas o nome do PDF. Arquivos editados, não reconhecidos ou cópias repetidas do mesmo exemplo na seleção são recusados, sem chamar a IA. Use o modo normal para outros documentos.
+SQLite, `pathlib`, `hashlib`, `uuid`, `json` e mecanismos de sincronização usados pelo projeto pertencem à biblioteca padrão do Python.
 
-## Indicadores e interpretação
+## Estrutura do repositório
 
-- **Documentos cadastrados:** todos os PDFs persistidos na biblioteca compartilhada, inclusive parciais ou sem texto.
-- **Análises realizadas:** resultados salvos apenas do modo atual, inclusive análises sem achados.
-- **Riscos identificados:** achados `risk` e `inconsistency` do modo atual, com citações reconferidas. Obrigações e prazos isolados não entram.
-- **Riscos de alta prioridade:** subconjunto anterior com prioridade `high`.
-
-Cada achado conta uma vez por análise, mesmo com várias evidências. Uma questão recorrente pode ser contada em análises diferentes; não há deduplicação semântica ou controle de resolução. Gráficos usam a mesma população. Alertas destacam até cinco riscos de prioridade alta e recomendações mostram até cinco ações por prioridade e recência.
-
-Alta prioridade representa impacto potencial grave ou urgência justificada; média, revisão relevante; baixa, atenção preventiva. No modo simulado, as classificações são predefinidas para o roteiro. No modo normal, são propostas pelo modelo. Citação conferida comprova a existência do trecho, não a correção da interpretação ou uma violação contratual.
-
-## Limites de processamento e custos
-
-- Upload: PDF, máximo de 10 × 1024 × 1024 bytes por arquivo, três arquivos por operação e dez páginas extraídas por PDF. Sem OCR e sem senha.
-- Análise real: até três documentos, 16.000 caracteres de origem divididos entre eles, até duas chamadas sequenciais, sem retentativas automáticas.
-- Chat real: pergunta de até 1.000 caracteres, até seis trechos e 10.000 caracteres de origem, uma chamada quando houver contexto relevante. Sem contexto, retorna evidência insuficiente sem chamar a API.
-- Cliente compartilhado: até 24.000 caracteres por carga JSON, até 4.000 tokens de saída por chamada, timeout de sessenta segundos e `store=False`.
-- Demonstração: zero chamadas à API; resultados locais claramente identificados.
-
-O histórico do chat é visual, somente na sessão, sem envio das mensagens anteriores ao modelo. Cada pergunta deve ser completa. Reenviar perguntas no modo normal pode gerar novo custo. Consultar, filtrar e renderizar resultados não chama a IA.
-
-## Testes e verificações
-
-Com o ambiente virtual ativado:
-
-```bash
-python -m pytest -q
-python -m compileall -q app.py config.py pages services database models scripts tests
-python -m pip check
+```text
+InsightFlow---AKCIT/
+├── app.py                         # Inicialização e navegação Streamlit
+├── config.py                      # Settings, ambiente, caminhos e limites
+├── ui_reading.py                   # Componentes e estilos de leitura
+├── .streamlit/config.toml          # Tema da interface
+├── pages/
+│   ├── dashboard.py
+│   ├── documents.py
+│   ├── analyses.py
+│   └── assistant.py
+├── services/
+│   ├── pdf_service.py              # Extração limitada de texto
+│   ├── document_service.py         # Validação, arquivos e persistência
+│   ├── analysis_service.py         # Analista, auditoria e evidências
+│   ├── demo_service.py             # Cenário fictício e regras locais
+│   ├── chat_service.py             # Entrada, geração e revalidação
+│   ├── agent_service.py            # Decisões e ferramentas de leitura
+│   ├── vector_service.py           # Recortes, sincronização e Qdrant
+│   ├── llm_service.py              # Interface comum e OpenAI
+│   ├── gemini_service.py           # Google Gen AI
+│   └── dashboard_service.py        # Indicadores
+├── database/
+│   ├── db.py                      # Conexões, tabelas e migração
+│   ├── repository.py              # SQL parametrizado
+│   ├── insightflow.db             # Gerado em execução; fora do Git
+│   └── qdrant/                    # Gerado na busca; fora do Git
+├── models/schemas.py              # Contratos Pydantic
+├── uploads/                       # PDFs UUID.pdf; fora do Git
+├── scripts/create_sample_pdfs.py
+├── output/pdf/                    # Exemplos gerados; fora do Git
+├── tests/
+├── docs/
+├── .env.example
+├── .gitignore
+├── requirements.txt
+└── README.md
 ```
 
-Os testes bloqueiam o cliente OpenAI real por uma fixture automática. PDFs, PyMuPDF e SQLite são reais em pastas temporárias; respostas e falhas da API são simuladas. Cobertura inclui banco, migração, uploads válidos/inválidos, extração, persistência, evidências, erros, filtros, gráficos, chat, reruns, análise demonstrativa e isolamento entre modos.
+## Processamento de PDFs
 
-O fluxo demonstrativo é exercitado pelo `AppTest` do Streamlit, inclusive recuperação em uma nova sessão. Os PDFs gerados foram renderizados e inspecionados visualmente. Integração com uma conta OpenAI e qualidade dos resultados reais exigem validação com chave; os testes não consomem créditos. A instalação Linux está documentada, mas não foi executada neste ambiente Windows.
+O processamento começa após selecionar arquivos e acionar a operação em **Documentos**.
 
-## Segurança e armazenamento
+1. `validate_pdf_upload` verifica extensão `.pdf`, conteúdo não vazio, tamanho e assinatura `%PDF-`.
+2. `extract_pdf_text` abre o arquivo em memória com PyMuPDF, rejeita senha e extrai até dez páginas com `get_text('text', sort=True)`.
+3. `process_document` gera um UUID, preserva o nome original como metadado e salva `uploads/<uuid>.pdf`.
+4. Documento e páginas são inseridos na mesma transação SQLite.
+5. Falhas normais de gravação desfazem a transação e tentam remover o arquivo criado. Em um lote, sucessos anteriores são preservados se outro PDF falhar.
 
-SQL parametrizado; arquivos recebidos salvos com UUID; credenciais somente no ambiente ou `.env`; sem logs de conteúdo ou chaves. PDFs, SQLite, `.env`, saídas geradas e arquivos temporários ficam fora do Git. O esquema é inicializado automaticamente. Preserve `database/insightflow.db` e `uploads/` para manter a biblioteca e os resultados.
+| Status | Significado |
+| --- | --- |
+| `processed` | Todas as páginas estão dentro do limite e existe texto extraível. |
+| `partial` | Apenas parte das páginas foi extraída pelo limite de dez páginas. |
+| `no_text` | Nenhuma página processada contém texto extraível; pode ser digitalizado. |
 
-Textos de PDFs são tratados como dados não confiáveis, sem ferramentas executáveis para o modelo. Citações são validadas por documento, nome, página e trecho literal; respostas do chat sem fontes verificáveis são ocultadas. As interpretações ainda podem conter erros.
+`no_text` tem precedência sobre `partial`; contagens de páginas continuam disponíveis para avisos. Não há OCR nem extração adicional automática durante o chat.
 
-## Limitações e pendências
+Reenviar o mesmo PDF cria outro documento com outro UUID. Não há deduplicação por conteúdo. A interface atual não oferece edição ou exclusão de documentos.
 
-Sem autenticação, OCR, edição de PDF, embeddings, pesquisa externa, filas ou execução paralela. Busca lexical perde sinônimos e contexto; recortes e extração simples podem perder diagramação e condições relevantes. Ausência de achados não garante ausência de riscos. Não há transação única entre sistema de arquivos e SQLite: uma interrupção abrupta durante o upload pode deixar um arquivo órfão. O dashboard agrega todo o histórico do modo atual e não acompanha resolução de riscos. A conversa não sobrevive a uma nova sessão.
+## Agentes e análise documental
 
-Não foram aferidas precisão jurídica, escala empresarial, disponibilidade da API real ou execução no Linux. O MVP é uma ferramenta de apoio à revisão humana.
+O projeto possui **papéis especializados de análise** e **um agente de investigação no chat**. A análise executa etapas fixas; o agente do chat decide quais ferramentas consultar. Ambos usam o mesmo adaptador de IA e regras de evidência.
+
+| Papel | Implementação | Responsabilidade |
+| --- | --- | --- |
+| Analista | `run_analyst` em `analysis_service.py` | Extrair fatos, obrigações e prazos com citações. |
+| Auditor/Recomendador | `run_auditor_and_recommender` em `analysis_service.py` | Comparar fatos e propor possíveis riscos, prioridades e ações. |
+| Agente documental | `investigate_question` em `agent_service.py` | Escolher buscas e leituras de páginas para uma pergunta. |
+| Geração final do chat | `ask_question` e `request_structured` | Produzir afirmações estruturadas a partir das fontes obtidas. |
+
+Auditoria e recomendação são combinadas na segunda chamada de análise. Conferência de citações, ordenação e resumo quantitativo são código determinístico, não novos agentes de IA.
+
+### Fluxo da análise
+
+```mermaid
+flowchart TD
+    Select[Selecionar de 1 a 3 documentos] --> Prepare[Preparar até 16000 caracteres]
+    Prepare --> Cache{Análise da mesma entrada existe?}
+    Cache -->|Sim| Revalidate[Revalidar e exibir resultado salvo]
+    Cache -->|Não| Analyst[Analista: até 20 fatos]
+    Analyst --> CheckFacts[Descartar fatos sem citações válidas]
+    CheckFacts --> HasFacts{Há fatos válidos?}
+    HasFacts -->|Sim| Auditor[Auditor/Recomendador: até 20 achados]
+    HasFacts -->|Não| Empty[Resultado sem achados]
+    Auditor --> CheckFindings[Conferir citações e inconsistências]
+    CheckFindings --> Save[Salvar em transação SQLite]
+    Empty --> Save
+```
+
+`prepare_sources` distribui o orçamento entre documentos e percorre páginas em ordem. Cada documento precisa ter ao menos vinte caracteres de texto extraível. Cortes e páginas não extraídas geram avisos.
+
+O Analista retorna `AnalystOutput`. Fatos com evidências inválidas são removidos antes da segunda etapa. Sem fatos válidos, o Auditor não é chamado.
+
+O Auditor retorna `AuditorOutput`. Só pode reutilizar citações literais já aceitas do Analista. Uma inconsistência exige evidências de pelo menos dois documentos distintos. Achados inválidos são descartados e contabilizados.
+
+Categorias: `obligation`, `deadline`, `risk` e `inconsistency`. Prioridades: `high`, `medium` e `low`. O modelo não deve tratar ausência de comprovante como prova de descumprimento.
+
+### Cache persistente
+
+Uma chave SHA-256 considera versão do fluxo (`ANALYSIS_PIPELINE_VERSION`), provedor, modelo, modo, fontes e avisos. Uma análise da mesma chave é reutilizada após revalidar evidências, sem nova chamada externa.
+
+Ao alterar regras ou instruções, atualize a versão do fluxo em `config.py` para não reutilizar resultados anteriores. Não existe cache persistente de respostas do chat.
+
+## Agente de investigação no chat
+
+O agente opera no modo real com `CHAT_RETRIEVAL=qdrant` e `CHAT_AGENT_ENABLED=true`. Recebe a pergunta, IDs e nomes da seleção e informações de cobertura das páginas.
+
+Exemplo: **“Compare os prazos de pagamento e verifique se há exceções.”** O agente pode buscar cláusulas, reformular a consulta e ler uma página para conferir a ressalva antes de encerrar.
+
+### Ferramentas
+
+| Ferramenta | Argumentos | Execução e limites |
+| --- | --- | --- |
+| `search_documents` | `query`, `document_ids` | Busca semântica no Qdrant, restrita a um subconjunto da seleção; até 3.000 caracteres admitidos por chamada. |
+| `read_page` | `document_id`, `page_number`, `offset` | Consulta SQL parametrizada; até 4.000 caracteres a partir do `offset`, com zero para início. |
+
+Argumentos usam Pydantic com tipos estritos e campos extras proibidos. Buscas vazias, páginas inválidas, posições negativas, ferramentas desconhecidas e documentos fora da seleção são recusados. Páginas ou posições sem texto retornam indisponibilidade.
+
+O modelo não recebe SQL livre, comandos, escrita em arquivos, pesquisa web ou funções de envio de mensagens. A leitura consulta o texto do SQLite sem reabrir o PDF.
+
+### Laço de investigação
+
+```mermaid
+flowchart TD
+    Question[Pergunta e seleção validadas] --> Decide[Modelo escolhe o próximo passo]
+    Decide --> Choice{Solicitou uma ferramenta?}
+    Choice -->|Não| Sources{Há fontes?}
+    Choice -->|Sim| Validate{Chamada válida e permitida?}
+    Validate -->|Sim| Execute[Executar consulta permitida]
+    Validate -->|Não| Refuse[Devolver recusa sem executar consulta]
+    Execute --> Retain[Deduplicar fontes e aplicar orçamento]
+    Retain --> Budget{Há orçamento para continuar?}
+    Refuse --> Budget
+    Budget -->|Sim| Decide
+    Budget -->|Não| Sources
+    Sources -->|Sim| Final[Gerar resposta estruturada com as fontes]
+    Sources -->|Não| Insufficient[Retornar evidência insuficiente sem geração]
+    Final --> Evidence[Validar citações e conferir SQLite]
+    Evidence --> Display[Resposta ou evidência insuficiente]
+```
+
+Chamadas recusadas e repetidas consomem o limite total de decisões. Uma repetição idêntica já executada é respondida sem novo acesso à ferramenta. Resultados são associados ao identificador da chamada (`call_id`) na conversa transitória da pergunta atual.
+
+### Limites e encerramento
+
+- Padrão de **quatro chamadas às ferramentas**, incluindo **no máximo três buscas vetoriais** por pergunta.
+- Orçamento compartilhado de **seis fontes e 10.000 caracteres** entre todas as ferramentas.
+- O agente pode encerrar antes do limite. Ao esgotá-lo, a geração usa somente o material obtido.
+- Sem fontes, retorna evidência insuficiente sem geração final; decisões anteriores ainda podem ter consumido chamadas.
+- Texto livre do planejador não é exibido. A geração final recebe somente a pergunta e os recortes admitidos.
+- Chamadas simultâneas propostas pelo modelo são recusadas antes de executar ferramentas.
+
+Contadores são recriados por pergunta. Avisos mostram quantidades de buscas e leituras e informam cortes e limites.
+
+### Histórico de sessão
+
+Perguntas e respostas ficam em `st.session_state`, separadas entre modo real e demonstração. Mensagens de perguntas anteriores não são enviadas à IA; cada pergunta precisa de contexto próprio. O histórico de ferramentas existe apenas durante a pergunta atual.
+
+Reruns e navegação na mesma sessão renderizam e reconferem fontes sem repetir a investigação. Uma nova sessão ou reinicialização perde a conversa, preservando documentos, análises e índice.
+
+## RAG e Qdrant local
+
+RAG combina **recuperação documental** com **geração fundamentada nos recortes recuperados**. No modo vetorial, a recuperação usa embeddings; no lexical, correspondência de termos. O SQLite é a origem dos textos em ambos.
+
+### Recortes e identificação
+
+- Cada página é dividida em trechos de até **1.800 caracteres**, com **200 de sobreposição**.
+- Recortes não atravessam páginas; trechos vazios são ignorados e o texto original é preservado.
+- IDs UUID5 determinísticos consideram texto, documento, nome, página e posição.
+- A coleção inclui um hash do caminho absoluto do SQLite, provedor, modelo de embeddings, dimensões, configuração dos recortes e versão do índice.
+
+Cada ponto Qdrant guarda vetor e payload com `document_id`, `filename`, `page_number` e `text`. Na consulta, os IDs encontrados são associados aos recortes reconstruídos do SQLite atual; o texto do payload não é autoridade para a resposta.
+
+### Sincronização sob demanda
+
+Antes de cada busca, `vector_service.py`:
+
+1. Lê páginas dos documentos solicitados e reconstrói os recortes esperados.
+2. Abre ou cria a coleção local com distância de cosseno e dimensões do provedor ativo.
+3. Compara IDs esperados com os já indexados para a seleção.
+4. Gera embeddings dos recortes ausentes, em lotes de até dezesseis entradas.
+5. Grava os novos vetores e, após concluir os lotes, remove IDs antigos da seleção.
+6. Remove da coleção ativa vetores de documentos que deixaram de existir no SQLite.
+7. Gera o embedding da consulta e busca com filtro obrigatório por documento.
+
+Lotes concluídos antes de uma falha permanecem disponíveis para reaproveitamento quando a pergunta for reenviada. Não há transação única entre SQLite e Qdrant.
+
+### Similaridade e orçamento
+
+`VECTOR_SCORE_THRESHOLD=0.3` é um ponto de partida a avaliar com perguntas reais. Pode produzir omissões ou recortes inadequados; não representa confiança estatística na resposta.
+
+A recuperação retorna até seis recortes dentro de 10.000 caracteres. O agente reaplica seus limites por ferramenta e o orçamento compartilhado. Cortes podem separar condições importantes e são sinalizados.
+
+### Alternativa lexical
+
+`CHAT_RETRIEVAL=lexical` normaliza caixa e acentos, remove palavras frequentes e reduz plurais por regras simples. Ordena por quantidade de termos distintos, frequência limitada a três ocorrências por termo e desempate por documento, página e posição.
+
+Não há dicionário de sinônimos, BM25, busca híbrida ou reranking implementados. A demonstração sempre usa recuperação lexical.
+
+### Processo e concorrência
+
+O índice é aberto com `QdrantClient(path=...)` e fechado ao final, inclusive em erros. Um `RLock` serializa buscas de sessões Streamlit no mesmo processo, incluindo a sincronização.
+
+Use um único processo por pasta Qdrant. Conexão com Qdrant em servidor, múltiplas réplicas e indexação em segundo plano não estão implementadas.
+
+## Integração com Gemini e OpenAI
+
+[`llm_service.py`](services/llm_service.py) expõe três operações:
+
+| Operação | Finalidade |
+| --- | --- |
+| `request_structured` | Receber um schema Pydantic e retornar resposta validada. |
+| `request_tool_turn` | Decidir o próximo passo do agente, aceitando no máximo uma ferramenta. |
+| `embed_texts` | Gerar um vetor por texto e validar quantidade, dimensões e valores. |
+
+### Gemini
+
+[`gemini_service.py`](services/gemini_service.py) usa `google-genai` com chave explícita e `vertexai=False`.
+
+- Geração: `client.models.generate_content`, `response_mime_type=application/json` e `response_schema`; o texto é validado novamente por Pydantic.
+- Ferramentas: `FunctionDeclaration` com JSON Schema e `automatic_function_calling.disable=True`; o aplicativo controla a execução.
+- Continuidade: conteúdo nativo, IDs e `thought_signature`, quando presentes, são preservados entre chamada e retorno. Raciocínio interno não é exibido.
+- Embeddings: `client.models.embed_content` com `output_dimensionality`. Cardinalidade ou dimensões incorretas, valores não finitos e vetores nulos são rejeitados.
+- Rede: timeout de 60.000 ms e `HttpRetryOptions(attempts=1)`, uma tentativa total.
+- Raciocínio: nível `LOW` para nomes iniciados por `gemini-3` ou `gemini-4` e orçamento zero para `gemini-2.5-flash`; o modelo precisa aceitar essa configuração.
+- O aplicativo não cria sessão remota de conversa; reenvia o contexto explicitamente.
+
+### OpenAI
+
+- Geração: `client.responses.parse`, `text_format=Schema` e validação de `output_parsed`.
+- Decisões: `client.responses.create` com ferramentas estritas e `parallel_tool_calls=False`.
+- Embeddings: `client.embeddings.create`, `dimensions` configurado e ordenação por `index`.
+- Rede e armazenamento: timeout de sessenta segundos, `max_retries=0` e `store=False`.
+
+Adaptadores recusam saídas incompletas ou bloqueadas e convertem erros em `LLMError`, sem expor conteúdo bruto ou credenciais. Modelos, conta, cota e disponibilidade dependem do serviço externo; não há fallback silencioso ou retentativa automática.
+
+## Schemas e validação das fontes
+
+[`models/schemas.py`](models/schemas.py) define os contratos do domínio e das respostas.
+
+| Schema | Dados principais |
+| --- | --- |
+| `Document`, `DocumentPage`, `ExtractedPDF` | Metadados, status e texto por página. |
+| `UploadResult` | Sucesso ou erro individual de upload. |
+| `SourcePage` | ID, nome, página e recorte disponível. |
+| `Evidence` | ID, nome, página e citação literal de 1 a 600 caracteres. |
+| `AnalystOutput` | Até vinte fatos; cada fato exige de uma a quatro evidências. |
+| `AuditorOutput`, `FindingDraft` | Até vinte achados propostos, com categoria, prioridade, ação e evidências. |
+| `Finding`, `Analysis` | Achados identificados e análise persistida. |
+| `ChatModelOutput` | Evidência suficiente e até seis afirmações. |
+| `ChatResponse` | Resposta validada, fontes, avisos e identificação de demonstração. |
+
+Exemplo de evidência com valores fictícios:
+
+```json
+{
+  "document_id": "uuid-do-documento",
+  "filename": "contrato.pdf",
+  "page_number": 1,
+  "quote": "O pagamento deverá ocorrer em até 30 dias."
+}
+```
+
+`evidence_matches` exige documento, nome e página correspondentes e citação literal contínua existente em um dos recortes enviados. A citação não é normalizada para aprovação; a normalização lexical só serve à busca.
+
+No chat, cada afirmação exige texto não vazio e ao menos uma evidência válida. Mesmo que o schema aceite evidências vazias, a regra de negócio as recusa. Se qualquer afirmação falhar, toda a resposta proposta é ocultada. Uma citação presente na página, mas fora do recorte enviado à geração, também é recusada.
+
+Fontes aceitas são numeradas e deduplicadas. Antes da exibição e em reruns, são reconferidas contra o SQLite atual. Na análise, achados incompatíveis são filtrados; no chat, respostas com fontes incompatíveis são ocultadas. Não há chamada automática para reparar citações.
+
+**Correspondência literal comprova a existência do trecho, não a correção da interpretação, a completude da busca ou uma violação contratual.**
+
+## Banco de dados e persistência
+
+### Esquema SQLite
+
+```mermaid
+erDiagram
+    app_metadata {
+        TEXT key PK
+        TEXT value
+    }
+    documents ||--o{ document_pages : possui
+    documents ||--o{ analysis_documents : participa
+    analyses ||--o{ analysis_documents : relaciona
+    analyses ||--o{ findings : contem
+    findings ||--o{ finding_evidence : fundamenta
+    document_pages ||--o{ finding_evidence : referencia
+```
+
+| Tabela | Finalidade e restrições relevantes |
+| --- | --- |
+| `app_metadata` | Pares chave/valor, incluindo versão do esquema. |
+| `documents` | UUID, nomes, data UTC, páginas e status validado por `CHECK`. |
+| `document_pages` | Texto por documento/página; combinação única e exclusão em cascata a partir do documento. |
+| `analyses` | UUID, `input_hash` único, modelo, resumo, avisos JSON, descartes e `is_demo`. |
+| `analysis_documents` | Relação muitos-para-muitos com chave composta. |
+| `findings` | Achados ligados à análise, categorias e prioridades limitadas por `CHECK`. |
+| `finding_evidence` | Citações com referências ao achado, documento e par documento/página. |
+
+`get_connection` usa `sqlite3.Row`, timeout de dez segundos, `PRAGMA foreign_keys=ON`, commit/rollback e fechamento automático. Consultas recebem parâmetros; placeholders para seleções variáveis são construídos conforme a quantidade de IDs.
+
+A inicialização cria diretórios e tabelas sem apagar dados. O esquema atual é versão **4**; a migração idempotente adiciona `analyses.is_demo` e classifica análises antigas sem essa coluna como reais. Análise, vínculos, achados e evidências são salvos na mesma transação.
+
+### O que persiste
+
+| Informação | Local | Sobrevive ao reinício? |
+| --- | --- | --- |
+| PDFs originais | `uploads/<uuid>.pdf` | Sim. |
+| Texto, metadados e análises | `database/insightflow.db` | Sim. |
+| Vetores e payloads | Pasta em `QDRANT_PATH` | Sim; reconstruíveis. |
+| Perguntas e respostas | `st.session_state` | Não em uma nova sessão. |
+| Passos de ferramentas | Memória da investigação | Não. |
+
+A biblioteca é compartilhada entre modos. Análises e dashboard são filtrados por `is_demo`. Resultados reais de provedores diferentes permanecem no mesmo histórico real; trocar provedor separa o cache, não cria outro banco ou biblioteca.
+
+## Dashboard e indicadores
+
+O dashboard agrega o histórico persistido e reconfere evidências antes de contar riscos. Não usa o modelo para preencher gráficos ou recomendações.
+
+| Indicador | Regra |
+| --- | --- |
+| Documentos cadastrados | Todos os PDFs da biblioteca, inclusive parciais e sem texto. |
+| Análises realizadas | Resultados salvos do modo atual, inclusive análises sem achados. |
+| Riscos identificados | Achados válidos das categorias `risk` e `inconsistency`. |
+| Riscos de alta prioridade | Subconjunto anterior com `severity=high`. |
+
+Obrigações e prazos isolados não entram em riscos. Cada achado conta uma vez por análise, mesmo com várias fontes. Uma questão pode reaparecer em análises diferentes; não há deduplicação semântica do histórico nem controle de resolução.
+
+Gráficos usam a mesma população de riscos. Alertas mostram até cinco itens de prioridade alta, recomendações até cinco ações e a lista recente até cinco análises. Priorização e recência são determinadas pelo código.
+
+## Limites técnicos e custos
+
+| Etapa | Limite atual |
+| --- | --- |
+| PDF | 10 × 1024 × 1024 bytes por arquivo; três arquivos por operação. |
+| Extração | Dez páginas por PDF; sem OCR e sem senha. |
+| Análise | De um a três documentos; 16.000 caracteres de origem distribuídos entre eles. |
+| Chamadas por análise nova | Até duas: Analista e Auditor/Recomendador; nenhuma em cache válido. |
+| Pergunta do chat | De 1 a 1.000 caracteres. |
+| Recorte vetorial | 1.800 caracteres, com 200 de sobreposição. |
+| Lote de embeddings | Até dezesseis textos; cada texto com até 1.800 caracteres. |
+| Contexto final do chat | Seis fontes e 10.000 caracteres de origem. |
+| Fonte por ferramenta | 3.000 caracteres na busca; 4.000 na leitura de página. |
+| Ferramentas por pergunta | Padrão quatro chamadas totais, no máximo três buscas. |
+| Entrada dos adaptadores | 24.000 caracteres de payload ou histórico serializado, conforme a operação. |
+| Saída da geração | 4.000 tokens por chamada. |
+| Saída de decisão do agente | 1.000 tokens por chamada. |
+| Timeout externo | Sessenta segundos por requisição, sem retentativa automática. |
+
+Valores são máximos, exceto onde indicados como padrões. Caracteres não equivalem a tokens. Instruções e schemas também participam do processamento externo. O timeout é por requisição, não um prazo total da pergunta.
+
+Com os padrões, o agente faz até quatro chamadas de decisão e até uma geração final. Cada busca vetorial pode gerar um embedding de consulta e vários lotes para recortes novos. Três buscas não significam três requisições HTTP no total.
+
+Vetores documentais são reutilizados. Consultas repetidas ainda podem gerar novos embeddings de consulta e respostas. A primeira indexação pode aumentar custo e espera. A demonstração faz zero chamadas externas.
+
+## Segurança e privacidade
+
+- PDFs são conteúdo não confiável. Prompts separam instruções fixas e dados e mandam ignorar comandos documentais.
+- Ferramentas são de leitura e validam a seleção em Python; o modelo não executa funções por conta própria.
+- Arquivos são salvos com UUID; o nome original não define o caminho de armazenamento.
+- SQL usa parâmetros e o banco habilita integridade referencial por conexão.
+- A interface exibe respostas e citações como texto, sem executar HTML, links ou comandos documentais.
+- Chaves vêm do ambiente e são modeladas como `SecretStr`; erros externos são sanitizados.
+- O código da aplicação não registra chaves ou conteúdo documental em logs. `.env`, PDFs, bancos, vetores padrão e artefatos gerados ficam fora do Git.
+
+O armazenamento é local, mas o processamento real **não é inteiramente local**: perguntas, consultas reformuladas, nomes e referências documentais e recortes necessários às decisões, geração e embeddings podem ser enviados ao provedor ativo. O projeto não envia o PDF integral como arquivo de API.
+
+As configurações de sessão não substituem políticas de retenção e uso de dados do provedor. Não há autenticação, isolamento entre usuários, permissões por documento, criptografia implementada pela aplicação ou trilha de auditoria de acesso. A seleção do agente não é autorização para ambientes com múltiplos usuários.
+
+## Operação e backup
+
+### Inicialização e reinício
+
+`app.py` carrega configurações, prepara uploads e SQLite e registra quatro páginas com `st.navigation`. O Qdrant só é aberto durante busca vetorial.
+
+Após instalar dependências, atualizar configurações ou trocar modelos, reinicie o Streamlit. Abrir sem chave é permitido; chamadas reais exigem a chave do provedor ativo.
+
+### Backup
+
+Com a aplicação parada, preserve em conjunto:
+
+- `database/insightflow.db`, para textos, metadados e resultados.
+- `uploads/`, para PDFs originais.
+- `.env` ou uma cópia segura das configurações, separada de repositórios públicos.
+- Opcionalmente, `QDRANT_PATH`, para evitar custos de reindexação.
+
+Não há transação única entre PDF e SQLite. Interrupções abruptas no upload podem deixar arquivos órfãos. Entre SQLite e Qdrant, a reconciliação ocorre sob demanda.
+
+### Reconstruir o índice
+
+1. Pare a aplicação.
+2. Renomeie a pasta em `QDRANT_PATH`, preservando a cópia anterior.
+3. Mantenha SQLite e PDFs.
+4. Reinicie e envie uma pergunta que execute busca vetorial.
+
+A coleção e os vetores dos documentos consultados serão recriados, com possível custo de API. Não existe comando de indexação de toda a biblioteca em segundo plano.
+
+Trocar provedor, modelo de embeddings, dimensões ou caminho absoluto do SQLite muda a identidade da coleção. Coleções antigas permanecem até limpeza manual com a aplicação parada. Essa separação evita misturar espaços vetoriais incompatíveis.
+
+### Implantação
+
+O alvo atual é uma aplicação local em um único processo, com armazenamento persistente. Em hospedagem, preserve diretórios de dados; armazenamento efêmero perde documentos e resultados após destruir a instância.
+
+Antes de disponibilizar para múltiplos usuários ou réplicas, implemente autenticação, autorização, política de dados, observabilidade e banco vetorial em servidor. Não há configuração de produção ou pipeline de implantação fornecido.
+
+## Testes e verificação
+
+Na última validação da implementação, a suíte completa executou **219 testes com sucesso**. O número registra a versão documentada e deve ser atualizado quando a suíte mudar.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m compileall -q app.py config.py ui_reading.py pages services database models scripts tests
+.\.venv\Scripts\python.exe -m pip check
+```
+
+Com o ambiente ativado, use `python -m ...` nos demais sistemas. Compilação e verificação de dependências são verificações adicionais, não substitutos para testes de comportamento.
+
+| Arquivo ou grupo | Verificações principais |
+| --- | --- |
+| `test_config.py` | Ambiente, defaults, limites e provedor. |
+| `test_pdf_service.py`, `test_document_service.py` | PDFs válidos, inválidos, protegidos, extração e persistência. |
+| `test_database.py` | Inicialização, integridade e transações. |
+| `test_analysis_service.py` | Fatos, auditoria, citações, filtros, cache e persistência. |
+| `test_chat_service.py` | Recuperação, respostas, fontes e histórico. |
+| `test_vector_service.py` | Qdrant em disco, filtros, atualização, persistência e bloqueio. |
+| `test_agent_service.py` | Ferramentas, reformulação, limites, seleção e reruns. |
+| `test_gemini_service.py` | Schemas, assinaturas, erros, embeddings e chat integrado. |
+| `test_llm_service.py` | SDK OpenAI, schemas, limites e erros sanitizados. |
+| `test_demo.py`, `test_dashboard.py`, `test_app.py` | Demonstração, indicadores, navegação e interface. |
+
+`tests/conftest.py` bloqueia clientes reais Google e OpenAI por padrão. PDFs, PyMuPDF, SQLite e Qdrant são usados em cenários reais e temporários; respostas, vetores e falhas externas são simulados. O `AppTest` do Streamlit verifica interface e ausência de repetição em reruns.
+
+A suíte não consome créditos de API nem mede qualidade semântica ou jurídica. Instalação Linux/macOS e escala empresarial não foram aferidas. Testes manuais reais devem usar material sintético ou aprovado para envio e podem consumir cota.
+
+## Solução de problemas
+
+| Sintoma | Verificação ou ação |
+| --- | --- |
+| Apenas trechos demonstrativos no chat | Confira `DEMO_MODE`; use `false` para geração real e reinicie. |
+| Chave adicionada, mas o sistema pede outra | Confira `AI_PROVIDER` e variáveis do processo que sobrescrevem `.env`; não há fallback. |
+| Gemini retorna 400 ou 404 | Confira modelo, chave, recursos e dimensões. Um modelo listado pode não estar habilitado para geração na conta. |
+| Erro 401 ou 403 | Verifique credencial e acesso ao modelo do provedor ativo. |
+| Erro 429 | Confira cota e limites. Reenvie após resolver; reruns não tentam novamente. |
+| Erro 503 ou alta demanda | Indisponibilidade do provedor. Aguarde ou configure outro modelo permitido; não há troca automática. |
+| Erro no índice local | Confira permissões e espaço; encerre outro processo com a mesma pasta Qdrant. |
+| Evidência insuficiente | Confira texto extraído, seleção, páginas e pergunta. Ausência de evidência não prova ausência no PDF. |
+| PDF sem texto | Pode ser digitalizado; não há OCR. |
+| PDF parcial | Só dez páginas foram extraídas; o agente não consulta as restantes. |
+| Resposta incompleta ou bloqueada | A saída é recusada. Verifique compatibilidade e tente explicitamente; não há reparo automático. |
+| Troca de provedor inicia indexação | Esperado: coleções são separadas por provedor/modelo/dimensões. |
+| Conversa desaparece após reinício | O chat existe na sessão; PDFs, páginas e análises persistem separadamente. |
+| Exemplos fictícios recusados | Gere novamente e envie originais de tipos diferentes; o conteúdo é conferido. |
+
+A interface identifica o provedor e mostra erros sanitizados. Não exponha o `.env` ou credenciais ao compartilhar um diagnóstico.
+
+## Demonstração do hackathon
+
+Configure `DEMO_MODE=true` e gere os exemplos:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/create_sample_pdfs.py
+```
+
+O script aceita `--output-dir CAMINHO`. Cria arquivos, mas não faz upload ou cadastro automático.
+
+| Arquivo | Conteúdo fictício |
+| --- | --- |
+| `FICTICIO_01_contrato_fornecedor.pdf` | Pagamento em dez dias, multa de 2%, obrigações e autorização financeira. |
+| `FICTICIO_02_politica_financeira.pdf` | Padrão de trinta dias e exceção autorizada por escrito. |
+| `FICTICIO_03_manual_operacional.pdf` | Aprovações prévias, responsabilidades e documentação. |
+
+Envie uma cópia de cada em **Documentos** e selecione os três em **Análises**. O serviço valida texto esperado, não apenas nome, e recusa exemplos alterados ou repetidos na seleção.
+
+Achados esperados: prazo contratual, possível exposição a multa, possível divergência de prazos e obrigação de formalizar aprovação. Em uma biblioteca nova, após uma execução: **3 documentos, 1 análise, 2 possíveis riscos e 1 risco de alta prioridade**.
+
+O chat demonstrativo recupera até três recortes locais sem gerar interpretação. Resultados são identificados como simulação e usam `is_demo=true`; não aparecem no histórico real. A biblioteca é compartilhada e uploads repetidos podem aumentar contagens.
+
+O roteiro está em [docs/demo.md](docs/demo.md). A demonstração verifica funcionamento local e rastreabilidade, não precisão de IA em documentos reais.
+
+## Limitações e evolução
+
+### Limitações atuais
+
+- Sem autenticação, permissões, colaboração, auditoria de acesso ou controle de resolução de riscos.
+- Sem OCR, edição de PDFs, outros formatos ou extração além das dez primeiras páginas.
+- O agente não faz pesquisa externa, escrita, agendamento, execução de recomendações ou envio a terceiros.
+- Sem memória de perguntas anteriores, histórico persistente de chat, fila, tarefas de fundo ou execução paralela.
+- Sem busca híbrida, reranking, validação semântica automática ou garantia de cobertura de todos os documentos.
+- Sem Qdrant em servidor configurado, replicação, contêiner de produção ou pipeline de implantação.
+- Fontes literais não impedem toda interpretação errada; recortes e extração podem perder tabelas, diagramação e ressalvas.
+
+### Caminhos de evolução
+
+Possíveis etapas incluem avaliar recuperação com perguntas rotuladas, combinar busca lexical e vetorial, adicionar OCR, controlar versões documentais, persistir conversas com política de retenção e migrar o índice para servidor quando houver múltiplos processos.
+
+São propostas, não funcionalidades disponíveis. Mudanças devem preservar seleção de documentos, limites de ferramentas, separação de modos e validação das evidências.
 
 ## Documentação complementar
 
 - [Arquitetura](docs/architecture.md)
 - [Fluxo dos agentes](docs/agent-flow.md)
-- [Processamento de PDFs](docs/document-processing.md)
-- [Chat e busca lexical](docs/chat.md)
-- [Roteiro de demonstração de três minutos](docs/demo.md)
+- [Processamento de documentos](docs/document-processing.md)
+- [Chat, agente e busca vetorial](docs/chat.md)
+- [Roteiro de demonstração](docs/demo.md)
 - [Proposta de negócio](docs/business.md)
+
+Para manutenção, consulte [models/schemas.py](models/schemas.py), [config.py](config.py) e [requirements.txt](requirements.txt). Ao alterar o código, mantenha documentos e `.env.example` consistentes.
