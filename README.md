@@ -2,7 +2,7 @@
 
 Plataforma local de inteligência documental para organizar PDFs, extrair texto, identificar obrigações e prazos, sugerir possíveis riscos e consultar documentos com um agente de IA e fontes verificáveis.
 
-MVP para hackathon em Python e Streamlit, com SQLite como origem dos dados, Qdrant local para recuperação semântica e Gemini ou OpenAI para análise, geração e embeddings. Os resultados apoiam a revisão humana; não constituem auditoria conclusiva ou parecer jurídico.
+MVP para hackathon em Python e Streamlit, com SQLite como origem dos dados, Qdrant local para recuperação semântica e Gemini ou OpenAI para análise, geração e embeddings. Os resultados apoiam a revisão humana; não constituem auditoria conclusiva ou parecer jurídico
 
 ## Sumário
 
