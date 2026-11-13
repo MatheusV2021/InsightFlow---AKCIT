@@ -5,7 +5,7 @@
 1. Instale as dependências e copie `.env.example` para `.env`.
 2. Confirme `DEMO_MODE=true`. A chave pode ficar vazia. Variáveis do processo têm prioridade sobre o arquivo; reinicie após trocar o modo.
 3. Execute `python scripts/create_sample_pdfs.py` e `python -m streamlit run app.py`.
-4. Abra a aplicação e confirme o aviso **MODO DEMONSTRAÇÃO**. Não é necessário acesso aos provedores de IA.
+4. Abra a aplicação com `DEMO_MODE=true` configurado. Não é necessário acesso aos provedores de IA; os resultados simulados são identificados nos detalhes das análises.
 5. Deixe os três arquivos de `output/pdf/` acessíveis. Não importe cópias repetidas para a mesma seleção.
 
 O gerador não cadastra dados automaticamente. A apresentação usa uploads e análise acionados pelo usuário. Se a biblioteca já tiver envios, o total de documentos e o histórico podem ser maiores que os números abaixo.

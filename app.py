@@ -34,9 +34,7 @@ with st.sidebar:
     st.divider()
     st.caption("VISÃO EMPRESARIAL")
     st.caption("Dados do armazenamento local")
-    if settings.demo_mode:
-        st.caption("DEMONSTRAÇÃO · análises simuladas · API bloqueada")
-    else:
+    if not settings.demo_mode:
         st.caption(f"MODO NORMAL · {settings.provider_label}")
     st.caption("Documentos → Análises → Dashboard")
 
@@ -51,6 +49,4 @@ page = st.navigation(
 )
 st.markdown("### InsightFlow AI")
 st.caption("Inteligência documental para acompanhar obrigações, priorizar riscos e orientar decisões.")
-if settings.demo_mode:
-    st.warning("MODO DEMONSTRAÇÃO: análises simuladas sobre PDFs fictícios e chat extrativo local. Nenhuma chamada à API. Gere os exemplos com python scripts/create_sample_pdfs.py.")
 page.run()
